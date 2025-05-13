@@ -6,7 +6,7 @@ all: build
 # Build the binary
 build:
 	@mkdir -p target
-	go build -o target/json2proto ./cmd/json2proto
+	go build -o target/schema2proto ./cmd/schema2proto
 
 # Run tests
 test:
@@ -18,7 +18,7 @@ clean:
 
 # Generate proto files from schema
 proto: build
-	./target/json2proto -schema schema.json -output proto/schema.proto
+	./target/schema2proto -schema schema.json -output proto/schema.proto
 
 # Install dependencies
 deps:
