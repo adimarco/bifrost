@@ -1,0 +1,15 @@
+# Build artifacts
+target/
+bin/
+
+# Generated files
+*.pb.go
+*.proto
+
+# IDE files
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db 
