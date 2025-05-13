@@ -112,11 +112,165 @@ message Root {
 			expected: "",
 			wantErr:  true,
 		},
+		{
+			name: "schema with descriptions",
+			schema: `{
+				"type": "object",
+				"description": "A test object with descriptions",
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "The name of the object"
+					},
+					"age": {
+						"type": "integer",
+						"description": "The age of the object"
+					}
+				}
+			}`,
+			expected: `syntax = "proto3";
+
+package schema;
+
+// A test object with descriptions
+message Root {
+// The age of the object
+  int32 age = 1;
+// The name of the object
+  string name = 2;
+}
+`,
+			wantErr: false,
+		},
+		{
+			name: "schema with definitions",
+			schema: `{
+				"definitions": {
+					"Person": {
+						"type": "object",
+						"properties": {
+							"name": {"type": "string"},
+							"age": {"type": "integer"}
+						}
+					}
+				}
+			}`,
+			expected: `syntax = "proto3";
+
+package schema;
+
+message Person {
+  int32 age = 1;
+  string name = 2;
+}
+`,
+			wantErr: false,
+		},
+		{
+			name: "definition with descriptions",
+			schema: `{
+				"definitions": {
+					"Pet": {
+						"type": "object",
+						"description": "A pet object",
+						"properties": {
+							"species": {"type": "string", "description": "The species of the pet"},
+							"age": {"type": "integer", "description": "The age of the pet"}
+						}
+					}
+				}
+			}`,
+			expected: `syntax = "proto3";
+
+package schema;
+
+// A pet object
+message Pet {
+// The age of the pet
+  int32 age = 1;
+// The species of the pet
+  string species = 2;
+}
+`,
+			wantErr: false,
+		},
+		{
+			name:   "empty properties",
+			schema: `{"type": "object", "properties": {}}`,
+			expected: `syntax = "proto3";
+
+package schema;
+
+message Root {
+}
+`,
+			wantErr: false,
+		},
+		{
+			name:   "empty definitions",
+			schema: `{"definitions": {}}`,
+			expected: `syntax = "proto3";
+
+package schema;
+`,
+			wantErr: false,
+		},
+		{
+			name:   "custom package name",
+			schema: `{"type": "object", "properties": {"foo": {"type": "string"}}}`,
+			expected: `syntax = "proto3";
+
+package custompkg;
+
+message Root {
+  string foo = 1;
+}
+`,
+			wantErr: false,
+		},
+		{
+			name:   "custom type mapping",
+			schema: `{"type": "object", "properties": {"flag": {"type": "boolean"}}}`,
+			expected: `syntax = "proto3";
+
+package schema;
+
+message Root {
+  BOOL flag = 1;
+}
+`,
+			wantErr: false,
+		},
+		{
+			name:   "array of objects",
+			schema: `{"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}}}}}}`,
+			expected: `syntax = "proto3";
+
+package schema;
+
+message Root {
+  repeated ItemsItem items = 1;
+}
+
+message ItemsItem {
+  string id = 1;
+}
+`,
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ConvertJSONSchemaToProto(tt.schema)
+			var opts *Options
+			if tt.name == "custom package name" {
+				opts = &Options{PackageName: "custompkg", TypeMappings: DefaultOptions().TypeMappings}
+			} else if tt.name == "custom type mapping" {
+				opts = &Options{PackageName: "schema", TypeMappings: map[string]string{"boolean": "BOOL"}}
+			} else {
+				opts = DefaultOptions()
+			}
+			got, err := ConvertJSONSchemaToProto(tt.schema, opts)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -153,7 +307,7 @@ func TestGetProtoType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetProtoType(tt.jsonType, tt.format)
+			got := GetProtoType(tt.jsonType, tt.format, DefaultOptions())
 			assert.Equal(t, tt.want, got)
 		})
 	}

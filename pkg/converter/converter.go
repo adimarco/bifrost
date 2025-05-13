@@ -50,6 +50,10 @@ func ConvertJSONSchemaToProto(schemaStr string, opts *Options) (string, error) {
 	// Generate root message fields (if any)
 	rootFields := &strings.Builder{}
 	fieldNumber := 1
+	rootMsgComment := ""
+	if desc, ok := schema["description"].(string); ok && desc != "" {
+		rootMsgComment = formatDescription(desc)
+	}
 	if props, ok := schema["properties"].(map[string]interface{}); ok {
 		keys := make([]string, 0, len(props))
 		for k := range props {
@@ -58,6 +62,12 @@ func ConvertJSONSchemaToProto(schemaStr string, opts *Options) (string, error) {
 		sort.Strings(keys)
 		for _, name := range keys {
 			prop := props[name]
+			// Add field description if present
+			if propMap, ok := prop.(map[string]interface{}); ok {
+				if desc, ok := propMap["description"].(string); ok && desc != "" {
+					rootFields.WriteString(formatDescription(desc))
+				}
+			}
 			fieldType, err := processPropertyCollect(name, prop, messages, opts)
 			if err != nil {
 				return "", err
@@ -67,7 +77,7 @@ func ConvertJSONSchemaToProto(schemaStr string, opts *Options) (string, error) {
 				fieldNumber++
 			}
 		}
-		messages["Root"] = fmt.Sprintf("message Root {\n%s}\n", rootFields.String())
+		messages["Root"] = fmt.Sprintf("%smessage Root {\n%s}\n", rootMsgComment, rootFields.String())
 	}
 
 	// Process definitions
@@ -81,17 +91,13 @@ func ConvertJSONSchemaToProto(schemaStr string, opts *Options) (string, error) {
 			def := defs[defName]
 			if defMap, ok := def.(map[string]interface{}); ok {
 				fields := &strings.Builder{}
-				// Add message description if present
-				if desc, ok := defMap["description"].(string); ok && desc != "" {
-					fields.WriteString(formatDescription(desc))
-				}
+				fieldNumber := 1
 				if props, ok := defMap["properties"].(map[string]interface{}); ok {
 					keys := make([]string, 0, len(props))
 					for k := range props {
 						keys = append(keys, k)
 					}
 					sort.Strings(keys)
-					fieldNumber := 1
 					for _, propName := range keys {
 						prop := props[propName]
 						// Add field description if present
@@ -111,6 +117,7 @@ func ConvertJSONSchemaToProto(schemaStr string, opts *Options) (string, error) {
 					}
 				}
 				msgComment := ""
+				// Add message description if present
 				if desc, ok := defMap["description"].(string); ok && desc != "" {
 					msgComment = formatDescription(desc)
 				}
@@ -204,7 +211,7 @@ func processPropertyCollect(name string, prop interface{}, messages map[string]s
 		return fmt.Sprintf("repeated %s", itemType), nil
 
 	case "object":
-		messageName := strings.Title(SanitizeFieldName(name))
+		messageName := toProtoMessageName(name)
 		if _, exists := messages[messageName]; !exists {
 			fields := &strings.Builder{}
 			if props, ok := propMap["properties"].(map[string]interface{}); ok {
@@ -245,4 +252,15 @@ func formatDescription(desc string) string {
 		out.WriteString("\n")
 	}
 	return out.String()
+}
+
+// toProtoMessageName converts a JSON field name to a valid Protocol Buffers message name
+func toProtoMessageName(name string) string {
+	parts := strings.Split(name, "_")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		}
+	}
+	return strings.Join(parts, "")
 }
